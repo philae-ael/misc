@@ -6,7 +6,7 @@ all: out/parser
 run: out/parser
 	out/parser
 
-out/parser:
-	mkdir out
+out/parser: parser.cpp
+	-@mkdir out -p
 	g++ parser.cpp -lreadline -o out/parser
 
