@@ -147,7 +147,7 @@ private:
   }
   void advance() {
     curToken.reset();
-    Token tok = peek();
+    peek();
   }
   void push(int i) {
     if (cur == PARSER_STACK_SIZE) {
