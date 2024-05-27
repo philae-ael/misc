@@ -1,0 +1,6 @@
+#ifndef INCLUDE_SORTS_SORTCOMMON_H_
+#define INCLUDE_SORTS_SORTCOMMON_H_
+
+#include "../common.h"
+
+#endif // INCLUDE_SORTS_SORTCOMMON_H_
