@@ -1,0 +1,7 @@
+lru 
+lru-memsan
+lru-addrsan
+lru-undefsan
+out.csv
+perf.data*
+./gecko_profile.json
