@@ -94,7 +94,7 @@ inline void lowercase_simd(char *data, size_t length) {
     data += 32;
   }
 
-  lowercase_table(data);
+  lower_simd(data);
 }
 
 int main(int argc, char *argv[]) {

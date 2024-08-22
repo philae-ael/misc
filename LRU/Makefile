@@ -10,7 +10,10 @@ lru-undefsan: lru.cpp
 lru-memsan: lru.cpp
 	clang++ -o lru-memsan -std=c++20 lru.cpp -O3 -DNDEBUG -ggdb -fsanitize=memory
 
-.PHONY: run run-addrsan run-undefsan run-memsan run-valgrind perf perf-gecko
+.PHONY: run run-addrsan run-undefsan run-memsan run-valgrind perf perf-gecko clean
+
+clean:
+	rm lru lru-addrsan lru-undefsan lru-memsan 
 
 run: lru 
 	./lru 

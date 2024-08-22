@@ -1,10 +1,10 @@
 #include "../bench.h"
 
-#include "primesieve.hpp"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <primesieve.hpp>
 #include <span>
 #include <vector>
 
