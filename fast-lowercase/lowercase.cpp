@@ -6,6 +6,7 @@
 #include <cstring>
 #include <ctime>
 #include <immintrin.h>
+#include <smmintrin.h>
 
 uint64_t rdtsc() {
   uint64_t hi, lo;
@@ -13,9 +14,10 @@ uint64_t rdtsc() {
   return ((uint64_t)lo) | (((uint64_t)hi) << 32);
 }
 
-#define RETRY 5000
+#define RETRY 500
 
 extern unsigned char data[];
+extern unsigned char data_end[];
 
 inline void lowercase_0(char *data, size_t l) {
   char c;
@@ -76,7 +78,8 @@ inline void lowercase_table(char *data) {
 
 #define ALIGN_MASK(x, m) (((x) + (m)) & ~(m))
 
-inline __m256i lower_simd(__m256i in) {
+[[gnu::target("avx512vl"), gnu::target("avx512bw")]] inline __m256i
+lower_simd(__m256i in) {
   __m256i u = _mm256_add_epi8(in, _mm256_set1_epi8(char(0xff) - 'Z'));
   __m256i t = _mm256_set1_epi8('A' + char(0xff) - 'Z');
 
@@ -85,7 +88,8 @@ inline __m256i lower_simd(__m256i in) {
   return _mm256_mask_add_epi8(in, m, in, _mm256_set1_epi8('a' - 'A'));
 }
 
-inline void lowercase_simd(char *data, size_t length) {
+[[gnu::target("avx512vl"), gnu::target("avx512bw")]] void
+lowercase_simd_avx512(char *data, size_t length) {
   while (length > 256 / 8) {
     __m256i d = _mm256_loadu_epi8(data);
 
@@ -94,20 +98,43 @@ inline void lowercase_simd(char *data, size_t length) {
     data += 32;
   }
 
-  lower_simd(data);
+  lowercase_table(data);
+}
+void lowercase_simd_dispatcher(char *data, size_t length);
+void (*_lowercase_simd)(char *data, size_t length) = lowercase_simd_dispatcher;
+
+void lowercase_simd_dispatcher(char *data, size_t length) {
+  _lowercase_simd = [](char *data, size_t) { return lowercase_table(data); };
+  if (__builtin_cpu_supports("avx512bw") &&
+      __builtin_cpu_supports("avx512vl")) {
+    printf("lowercase simd using avx512\n");
+    _lowercase_simd = lowercase_simd_avx512;
+  }
+  return _lowercase_simd(data, length);
 }
 
+inline void lowercase_simd(char *data, size_t length) {
+  return _lowercase_simd(data, length);
+}
+
+#define TRAMPOLINE
+
 int main(int argc, char *argv[]) {
-  auto base = strdup((char *)data);
-  size_t l = strlen((char *)data);
+  size_t l = (size_t)(data_end - data);
+  char *ndata = (char *)malloc(l + 1);
+  memcpy(ndata, data, l);
+  ndata[l] = 0;
+
+  auto base = strdup(ndata);
   lowercase_0(base, l);
 
+  printf("starting !\n");
   {
     uint64_t sum = 0;
 
     clock_t before = clock();
     for (size_t r = 0; r < RETRY; r++) {
-      auto d = strdup((char *)data);
+      auto d = strdup(ndata);
 
       uint64_t start = rdtsc();
       lowercase_0(d, l);
@@ -121,11 +148,11 @@ int main(int argc, char *argv[]) {
     float msec = float(after - before) / (float)CLOCKS_PER_SEC;
 
     printf("lowercase_0 took: %.4f byte per cycle, took %.2f ms\n",
-           strlen((char *)data) * RETRY / (float)sum, msec);
+           l * RETRY / (float)sum, msec);
   }
 
   {
-    auto d = strdup((char *)data);
+    auto d = strdup(ndata);
     lowercase_smarter(d);
     assert(strcmp(base, d) == 0);
     free(d);
@@ -134,7 +161,7 @@ int main(int argc, char *argv[]) {
 
     clock_t before = clock();
     for (size_t r = 0; r < RETRY; r++) {
-      auto d = strdup((char *)data);
+      auto d = strdup(ndata);
 
       uint64_t start = rdtsc();
       lowercase_smarter(d);
@@ -148,11 +175,11 @@ int main(int argc, char *argv[]) {
     float msec = float(after - before) / (float)CLOCKS_PER_SEC;
 
     printf("lowercase_smarter took: %.4f byte per cycle, %.2fmsec\n",
-           strlen((char *)data) * RETRY / (float)sum, msec);
+           l * RETRY / (float)sum, msec);
   }
 
   {
-    auto d = strdup((char *)data);
+    auto d = strdup(ndata);
     lowercase_branchless(d);
     assert(strcmp(base, d) == 0);
     free(d);
@@ -161,7 +188,7 @@ int main(int argc, char *argv[]) {
 
     clock_t before = clock();
     for (size_t r = 0; r < RETRY; r++) {
-      auto d = strdup((char *)data);
+      auto d = strdup(ndata);
 
       uint64_t start = rdtsc();
       lowercase_branchless(d);
@@ -174,10 +201,10 @@ int main(int argc, char *argv[]) {
     clock_t after = clock();
     float msec = float(after - before) / (float)CLOCKS_PER_SEC;
     printf("lowercase_branchless took: %.4f byte per cycle, %.2fmsec\n",
-           strlen((char *)data) * RETRY / (float)sum, msec);
+           l * RETRY / (float)sum, msec);
   }
   {
-    auto d = strdup((char *)data);
+    auto d = strdup(ndata);
     lowercase_table(d);
     assert(strcmp(base, d) == 0);
     free(d);
@@ -186,7 +213,7 @@ int main(int argc, char *argv[]) {
 
     clock_t before = clock();
     for (size_t r = 0; r < RETRY; r++) {
-      auto d = strdup((char *)data);
+      auto d = strdup(ndata);
 
       uint64_t start = rdtsc();
       lowercase_table(d);
@@ -200,11 +227,11 @@ int main(int argc, char *argv[]) {
     float msec = float(after - before) / (float)CLOCKS_PER_SEC;
 
     printf("lowercase_table took: %.4f byte per cycle, %.2fmsec\n",
-           strlen((char *)data) * RETRY / (float)sum, msec);
+           l * RETRY / (float)sum, msec);
   }
 
   {
-    auto d = strdup((char *)data);
+    auto d = strdup(ndata);
     lowercase_simd(d, l);
     assert(strcmp(base, d) == 0);
     free(d);
