@@ -1,0 +1,3 @@
+[submodule "corelib/corelib/vendor/VulkanMemoryAllocator"]
+	path = corelib/corelib/vendor/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
