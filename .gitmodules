@@ -1,3 +1,9 @@
 [submodule "corelib/corelib/vendor/VulkanMemoryAllocator"]
 	path = corelib/corelib/vendor/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
+[submodule "corelib/vendor/imgui"]
+	path = corelib/vendor/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "corelib/vendor/SDL"]
+	path = corelib/vendor/SDL
+	url = https://github.com/libsdl-org/SDL
