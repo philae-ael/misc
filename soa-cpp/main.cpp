@@ -3,10 +3,10 @@
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <functional>
 #include <tuple>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 // Macro magic  start
 #define EXPAND(...) EXPAND4(EXPAND4(EXPAND4(EXPAND4(__VA_ARGS__))))
@@ -31,6 +31,13 @@
     _gen_fields(__VA_ARGS__)                                                   \
   };
 
+#define _gen_view_field(type, name) std::reference_wrapper<type> name;
+#define _gen_view_fields(...) FOR_EACH2(_gen_field, __VA_ARGS__)
+#define _gen_SOA_view(name, ...)                                               \
+  struct name##_view {                                                         \
+    _gen_view_fields(__VA_ARGS__)                                              \
+  };
+
 #define _gen_type(type, name) , type
 #define _gen_lot(type, name, ...)                                              \
   type __VA_OPT__(FOR_EACH2(_gen_type, __VA_ARGS__))
@@ -40,12 +47,14 @@
 #define _gen_SOA_traits(name, ...)                                             \
   template <> struct SOA_Traits<name> {                                        \
     using T = name;                                                            \
+    using view = name##_view;                                                  \
     using types = ListOfTypes<_gen_lot(__VA_ARGS__)>;                          \
     static constexpr std::array offsets{_gen_offsets(__VA_ARGS__)};            \
   };
 
 #define SOA_Type(name, ...)                                                    \
-  _gen_SOA_struct(name, __VA_ARGS__) _gen_SOA_traits(name, __VA_ARGS__)
+  _gen_SOA_struct(name, __VA_ARGS__) _gen_SOA_view(name, __VA_ARGS__)          \
+      _gen_SOA_traits(name, __VA_ARGS__)
 
 template <class T, size_t idx> struct TYindex {
   using type = T;
@@ -65,6 +74,17 @@ template <class... Ts> struct ListOfTypes {
   template <class F> inline static void map(F f) {
     map_apply_(f, std::make_integer_sequence<std::size_t, sizeof...(Ts)>{});
   }
+
+  template <class T, class F, std::size_t... Is>
+  inline static T
+  map_construct_apply_(F f, std::integer_sequence<std::size_t, Is...>) {
+    return T{f(TYindex<Ts, Is>{})...};
+  }
+
+  template <class T, class F> inline static T map_construct(F f) {
+    return map_construct_apply_<T, F>(
+        f, std::make_integer_sequence<std::size_t, sizeof...(Ts)>{});
+  }
 };
 
 template <class T> struct SOA_Traits {};
@@ -78,6 +98,7 @@ template <class T>
 class SOA {
   using Traits = SOA_Traits<T>;
   using Storage = Traits::types::template apply_to<detail::Storage>;
+  using View = Traits::view;
   Storage s;
   size_t size_ = 0;
 
@@ -90,15 +111,16 @@ public:
     return size_++;
   }
   T get(size_t index) {
-    alignas(T) std::byte res[sizeof(T)];
-
-    Traits::types::map(
-        [&res, &index, this]<class Ti, size_t idx>(TYindex<Ti, idx>) {
-          std::byte *dst = res + Traits::offsets[idx];
-          std::memcpy(dst, &std::get<idx>(s)[index], sizeof(Ti));
+    return Traits::types::map_construct(
+        [index, this]<class Ti, size_t idx>(TYindex<Ti, idx>) {
+          return &std::get<idx>(s)[index];
         });
-
-    return *reinterpret_cast<T *>(res);
+  }
+  View get_view(size_t index) {
+    return Traits::types::template map_construct<View>(
+        [&index, this]<class Ti, size_t idx>(TYindex<Ti, idx>) {
+          return std::reference_wrapper(std::get<idx>(s)[index]);
+        });
   }
 };
 
@@ -113,7 +135,7 @@ int main(int argc, char *argv[]) {
   SOA<A> soa;
   size_t idx = soa.insert({1, 2, 3});
   blackbox(soa);
-  auto b = soa.get(idx);
+  auto b = soa.get_view(idx);
   assert(b.a == 1);
   assert(b.b == 2);
   assert(b.c == 3);
