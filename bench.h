@@ -10,8 +10,13 @@
 #define NO_INLINE __attribute__((noinline))
 inline void blackbox() { asm volatile(""); }
 
-uint64_t bias = 0;
-float nano_per_cycle = 0;
+// From google benchmark
+template <class Tp> inline void DoNotOptimize(Tp const &value) {
+  asm volatile("" : : "r,m"(value) : "memory");
+}
+
+static uint64_t bias = 0;
+static float nano_per_cycle = 0;
 
 /// Serialize all memory read / writes
 inline void fences() { __asm__ volatile("mfence\n\tlfence"); }
@@ -58,7 +63,8 @@ static void compute_bias() {
   nano_per_cycle =
       (float)(tend.tv_nsec - tstart.tv_nsec) / (float)(rend - rstart);
 
-  printf("Biais: %lu, nano per sec %f\n", bias, nano_per_cycle);
+  printf("Biais: %lu, nano per cycle %.1f | cycle per nano %.1f\n", bias,
+         nano_per_cycle, 1.0f / nano_per_cycle);
 }
 
 struct bench_res {
@@ -114,7 +120,7 @@ bench_res bench(const char *name, const size_t retry, F f, Args... args) {
 }
 
 static void setup_monothreaded() {
-  cpu_set_t cpuset;
+  cpu_set_t cpuset{};
   CPU_ZERO(&cpuset);
   CPU_SET(0, &cpuset);
 
