@@ -3,7 +3,7 @@
 ## What
 Parsing with predecence
 
-I think it's a pratt parser, not sure though.
+Pratt parser like thing
 
 
 Will parser math expression with: integers (>0), *,/, -, + with precedence
