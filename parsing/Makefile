@@ -8,5 +8,5 @@ run: out/parser
 
 out/parser: parser.c
 	-@mkdir out -p
-	gcc -ggdb -std=c23 parser.c -lreadline -o out/parser
+	gcc -ggdb -std=c11 parser.c -lreadline -o out/parser
 
